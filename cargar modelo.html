@@ -36,8 +36,10 @@
 
 			import { GLTFLoader } from './js/jsm/loaders/GLTFLoader.js';
 
-			var container, stats, clock, gui, mixer, actions, activeAction, previousAction;
+			var container, stats, clock, gui, mixer, actions, activeAction, previousAction, userHitBox;
 			var camera, scene, renderer, model, face, guybody;
+
+			var collidableMeshList = [];
             var keyboard = new THREEx.KeyboardState();
 			var api = { state: 'Idle' };
 
@@ -116,6 +118,28 @@
 					console.error( e );
 
 				} );
+
+				// user hitbox
+				var geometry = new THREE.BoxGeometry( 1.5, 4, 1.5 );
+				var material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+				userHitBox = new THREE.Mesh( geometry, material );
+				scene.add( userHitBox );
+
+				// food source
+				var geometry = new THREE.BoxBufferGeometry( 4, 1, 4 );
+				
+				for ( var i = 0; i < 100; i ++ ) {
+					var object =  new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { color: Math.random() * 0xffffff, transparent: true, opacity: 1 } ) );
+					object.position.x = Math.random() * 100 - 50;
+					object.position.z = Math.random() * 100 - 50;
+					object.rotation.y = Math.random() * 2 * Math.PI;
+					
+					collidableMeshList.push(object);
+					scene.add( object );
+
+				}
+
+
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
@@ -131,6 +155,25 @@
             }
             var movingAction = 'Walk';
             var isMoving = false;
+
+			function checkCollisions() {
+				var originPoint = userHitBox.position.clone();
+
+				for (var vertexIndex = 0; vertexIndex < userHitBox.geometry.vertices.length; vertexIndex++) {
+					var localVertex = userHitBox.geometry.vertices[vertexIndex].clone();
+					var globalVertex = localVertex.applyMatrix4(userHitBox.matrix);
+					var directionVector = globalVertex.sub(userHitBox.position);
+
+					var ray = new THREE.Raycaster(originPoint, directionVector.clone().normalize());
+					var collisionResults = ray.intersectObjects(collidableMeshList);
+					if (collisionResults.length > 0 && collisionResults[0].distance < directionVector.length()) {
+						console.log(collisionResults[0].object.name);
+						collisionResults[0].object.material.transparent = true;
+						collisionResults[0].object.material.opacity = 0.4;
+					}
+				}
+			}
+
             function createHandlers() {
                 document.addEventListener('keydown', (e) => {
                     if (e.code === "ShiftRight") {
@@ -257,13 +300,19 @@
 				if ( mixer ) mixer.update( dt );
 
 
-                var relativeCameraOffset = new THREE.Vector3(0,5,10);
+                var relativeCameraOffset = new THREE.Vector3(0,5,-10);
 
                 var cameraOffset = relativeCameraOffset.applyMatrix4( model.matrixWorld );
 
                 camera.position.x = cameraOffset.x;
                 camera.position.y = cameraOffset.y;
                 camera.position.z = cameraOffset.z;
+
+				userHitBox.position.x = model.position.x;
+				userHitBox.position.y = model.position.y;
+				userHitBox.position.z = model.position.z;
+
+				checkCollisions();
 
                 var relativeView = new THREE.Vector3(model.position.x, model.position.y+2,model.position.z);
                 camera.lookAt( relativeView );
