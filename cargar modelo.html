@@ -35,15 +35,65 @@
 			import { GUI } from './js/jsm/libs/dat.gui.module.js';
 
 			import { GLTFLoader } from './js/jsm/loaders/GLTFLoader.js';
+			import { SkeletonUtils } from './js/jsm/utils/SkeletonUtils.js';
 
 			var container, stats, clock, gui, mixer, actions, activeAction, previousAction, userHitBox;
-			var camera, scene, renderer, model, face, guybody;
+			var camera, scene, renderer, model, face, guybody, food, banana;
 
 			var collidableMeshList = [];
+			var foodlist = [];
             var keyboard = new THREEx.KeyboardState();
 			var api = { state: 'Idle' };
 
+			const cloneGltf = (gltf) => {
+				const clone = {
+					// animations: gltf.animations,
+					scene: gltf.scene.clone(true)
+				};
+
+				const skinnedMeshes = {};
+
+				gltf.scene.traverse(node => {
+					if (node.isSkinnedMesh) {
+					skinnedMeshes[node.name] = node;
+					}
+				});
+
+				const cloneBones = {};
+				const cloneSkinnedMeshes = {};
+
+				clone.scene.traverse(node => {
+					if (node.isBone) {
+					cloneBones[node.name] = node;
+					}
+
+					if (node.isSkinnedMesh) {
+					cloneSkinnedMeshes[node.name] = node;
+					}
+				});
+
+				for (let name in skinnedMeshes) {
+					const skinnedMesh = skinnedMeshes[name];
+					const skeleton = skinnedMesh.skeleton;
+					const cloneSkinnedMesh = cloneSkinnedMeshes[name];
+
+					const orderedCloneBones = [];
+
+					for (let i = 0; i < skeleton.bones.length; ++i) {
+					const cloneBone = cloneBones[skeleton.bones[i].name];
+					orderedCloneBones.push(cloneBone);
+					}
+
+					cloneSkinnedMesh.bind(
+						new THREE.Skeleton(orderedCloneBones, skeleton.boneInverses),
+						cloneSkinnedMesh.matrixWorld);
+				}
+
+				return clone;
+			}
+
 			init();
+
 
 			function init() {
 
@@ -96,7 +146,7 @@
 
 				var loader = new GLTFLoader();
 				loader.load( './models/Casual_Male.glb', function ( gltf ) {
-
+					console.log(gltf);
 					model = gltf.scene;
                     scene.add( model );
                     var materialObj = new THREE.MeshNormalMaterial( {color: "#F28EBD", skinning: true} );
@@ -121,23 +171,69 @@
 
 				// user hitbox
 				var geometry = new THREE.BoxGeometry( 1.5, 4, 1.5 );
-				var material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+				var material = new THREE.MeshBasicMaterial( { color: 0x00ff00, transparent: true, opacity: 0 } );
 				userHitBox = new THREE.Mesh( geometry, material );
 				scene.add( userHitBox );
 
 				// food source
-				var geometry = new THREE.BoxBufferGeometry( 4, 1, 4 );
-				
-				for ( var i = 0; i < 100; i ++ ) {
-					var object =  new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { color: Math.random() * 0xffffff, transparent: true, opacity: 1 } ) );
-					object.position.x = Math.random() * 100 - 50;
-					object.position.z = Math.random() * 100 - 50;
-					object.rotation.y = Math.random() * 2 * Math.PI;
-					
-					collidableMeshList.push(object);
-					scene.add( object );
+				// Tomatoe
+				loader.load( './models/Tomato.glb', function ( gltf ) {
+					food = gltf;
+					var materialRed = new THREE.MeshBasicMaterial( {
+						color: '#FF0000',
+						wireframe: true
+					} );
+					var materialGreen = new THREE.MeshBasicMaterial( {
+						color: '#00FF00',
+						wireframe: true
+					} );
+					// var materialObj = new THREE.MeshNormalMaterial( {color: "#F28EBD", skinning: true} );
+                    food.scene.traverse(function(child){
+                        if (child.name == 'Cube.040_0'){
+                            child.material = materialRed;
+                        }
+						if (child.name == 'Cube.040_1'){
+                            child.material = materialGreen;
+                        }
+                        // if(child.hasOwnProperty('material')){
+                        //     console.log(child.name);
+                        //     child.material = materialObj;
+                        // }
+                    });
+					generateTomatoes();
+				}, undefined, function ( e ) {
 
-				}
+					console.error( e );
+
+				} );
+
+				// Carrot
+				loader.load( './models/Banana.glb', function ( gltf ) {
+					banana = gltf;
+					var materialYellow = new THREE.MeshBasicMaterial( {
+						color: '#FFEA00',
+						wireframe: true
+					} );
+					// var materialObj = new THREE.MeshNormalMaterial( {color: "#F28EBD", skinning: true} );
+                    banana.scene.traverse(function(child){
+                        // if (child.name == 'Cube.040_0'){
+                        //     child.material = materialRed;
+                        // }
+						// if (child.name == 'Cube.040_1'){
+                        //     child.material = materialGreen;
+                        // }
+                        if(child.hasOwnProperty('material')){
+                            // console.log(child.name);
+                            child.material = materialYellow;
+                        }
+                    });
+					generateBananas();
+				}, undefined, function ( e ) {
+
+					console.error( e );
+
+				} );
+
 
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
@@ -156,22 +252,73 @@
             var movingAction = 'Walk';
             var isMoving = false;
 
+			function generateTomatoes() {
+				
+				for ( var i = 0; i < 100; i ++ ) {
+					// console.log(food);
+					var clon = cloneGltf(food);
+					var clonfood = clon.scene;
+					clonfood.position.x = Math.random() * 100 - 50;
+					clonfood.position.z = Math.random() * 100 - 50;
+					clonfood.rotation.y = Math.random() * 2 * Math.PI;
+
+					// collidableMeshList.push(object);
+					foodlist.push(clonfood);
+					scene.add( clonfood );
+
+				}
+			}
+
+			function generateBananas() {
+				
+				for ( var i = 0; i < 100; i ++ ) {
+					// console.log(food);
+					var clon = cloneGltf(banana);
+					var clonfood = clon.scene;
+					clonfood.position.x = Math.random() * 100 - 50;
+					clonfood.position.z = Math.random() * 100 - 50;
+					clonfood.rotation.y = Math.random() * 2 * Math.PI;
+
+					// collidableMeshList.push(object);
+					foodlist.push(clonfood);
+					scene.add( clonfood );
+
+				}
+			}
+
+			function distanceVector( v1, v2 )
+			{
+				var dx = v1.x - v2.x;
+				var dy = v1.y - v2.y;
+				var dz = v1.z - v2.z;
+
+				return Math.sqrt( dx * dx + dy * dy + dz * dz );
+			}
+
 			function checkCollisions() {
-				var originPoint = userHitBox.position.clone();
+				// var originPoint = userHitBox.position.clone();
+				var collidedObject = false;
+				// for (var vertexIndex = 0; vertexIndex < userHitBox.geometry.vertices.length; vertexIndex++) {
+				// 	var localVertex = userHitBox.geometry.vertices[vertexIndex].clone();
+				// 	var globalVertex = localVertex.applyMatrix4(userHitBox.matrix);
+				// 	var directionVector = globalVertex.sub(userHitBox.position);
 
-				for (var vertexIndex = 0; vertexIndex < userHitBox.geometry.vertices.length; vertexIndex++) {
-					var localVertex = userHitBox.geometry.vertices[vertexIndex].clone();
-					var globalVertex = localVertex.applyMatrix4(userHitBox.matrix);
-					var directionVector = globalVertex.sub(userHitBox.position);
-
-					var ray = new THREE.Raycaster(originPoint, directionVector.clone().normalize());
-					var collisionResults = ray.intersectObjects(collidableMeshList);
-					if (collisionResults.length > 0 && collisionResults[0].distance < directionVector.length()) {
-						console.log(collisionResults[0].object.name);
-						collisionResults[0].object.material.transparent = true;
-						collisionResults[0].object.material.opacity = 0.4;
+				// 	var ray = new THREE.Raycaster(originPoint, directionVector.clone().normalize());
+				// 	var collisionResults = ray.intersectObjects(collidableMeshList);
+				// 	if (collisionResults.length > 0 && collisionResults[0].distance < directionVector.length()) {
+				// 		console.log(collisionResults[0].object);
+				// 		collidedObject = collisionResults[0].object;
+				// 		// collisionResults[0].object.material.transparent = true;
+				// 		// collisionResults[0].object.material.opacity = 0.4;
+				// 	}
+				// }
+				for (let index = 0; index < foodlist.length; index++) {
+					const objetodestino = foodlist[index];
+					if(distanceVector(model.position, objetodestino.position) < 3){
+						collidedObject = objetodestino
 					}
 				}
+				return collidedObject;
 			}
 
             function createHandlers() {
@@ -200,6 +347,21 @@
                     } else if (e.code === "Space") {
                         if(!isMoving){
                             fadeToAction( 'PickUp', 0.5 );
+							var objetocolisionado = checkCollisions();
+							if (objetocolisionado) {
+								let pos = foodlist.indexOf(objetocolisionado);
+								console.log(objetocolisionado);
+								window.setTimeout(function(){
+									objetocolisionado.traverse(function(child){
+										if(child.hasOwnProperty('material')){
+										    child.material.dispose();
+										}
+									});
+									scene.remove(objetocolisionado);
+									foodlist.splice(pos, 1);
+									model.scale.x -= 0.05
+								}, 650)
+							}
                         }
                     }
                 });
@@ -285,7 +447,7 @@
                 if(keyboard.pressed("shift")){
                     moveDistance = 10 * dt;
                 }
-                // model.scale.x = model.scale.x + 0.0001;
+                model.scale.x = model.scale.x + 0.001;
                 // move forwards/backwards/left/right
                 var isMoving = keyboard.pressed("W") || keyboard.pressed("S") || keyboard.pressed("A") | keyboard.pressed("D")
                 if(isMoving){
@@ -299,10 +461,18 @@
                 }
 				if ( mixer ) mixer.update( dt );
 
+				var camerapos = -10;
+				if ( keyboard.pressed("C") )
+					camerapos = 10;
 
-                var relativeCameraOffset = new THREE.Vector3(0,5,-10);
+                var relativeCameraOffset = new THREE.Vector3(0,5,camerapos);
 
                 var cameraOffset = relativeCameraOffset.applyMatrix4( model.matrixWorld );
+
+				for (let index = 0; index < foodlist.length; index++) {
+					const element = foodlist[index];
+					element.rotation.y += Math.PI / 2 * dt;
+				}
 
                 camera.position.x = cameraOffset.x;
                 camera.position.y = cameraOffset.y;
@@ -312,16 +482,19 @@
 				userHitBox.position.y = model.position.y;
 				userHitBox.position.z = model.position.z;
 
-				checkCollisions();
+				// checkCollisions();
 
                 var relativeView = new THREE.Vector3(model.position.x, model.position.y+2,model.position.z);
                 camera.lookAt( relativeView );
 
 				requestAnimationFrame( animate );
 
-				renderer.render( scene, camera );
-
-				stats.update();
+				if (renderer){
+					renderer.render( scene, camera );
+				}
+				if (stats) {
+					stats.update();
+				}
 
 			}
 
