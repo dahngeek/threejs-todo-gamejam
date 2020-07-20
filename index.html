@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>three.js webgl - skinning and morphing</title>
+		<title>Quarantine Effects | TODO GAMEJAM</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<link type="text/css" rel="stylesheet" href="main.css">
@@ -26,7 +26,16 @@
 	</head>
 
 	<body>
+		<img id= "logo" src="./images/text.png" alt="" style="position: absolute; z-index: 99; top: 30px;left: 50%; margin-left: -150px; max-width: 300px;">
+		<p style="font-size: 40px; position: absolute;top: 30px; right: 30px;">Time alive: <span id="segundos">0</span>s</p>
+		<img id="move" src="./images/move.png" alt="" style="position: absolute; z-index: 99; bottom: 40px;left: 50%; margin-left: -225px; max-width: 450px;">
+		<img id="space" src="./images/space.png" alt="" style="display:none;position: absolute; z-index: 99; bottom: 40px;left: 50%; margin-left: -225px; max-width: 450px;">
+		<img id="run" src="./images/run.png" alt="" style="display:none;position: absolute; z-index: 99; bottom: 40px;left: 50%; margin-left: -225px; max-width: 450px;">
+		<img id="fat" src="./images/fat.png" alt="" style="display:none;position: absolute; z-index: 99; bottom: 40px;left: 50%; margin-left: -225px; max-width: 450px;">
+		<img id="cam" src="./images/camera.png" alt="" style="display:none;position: absolute; z-index: 99; bottom: 40px;left: 50%; margin-left: -225px; max-width: 450px;">
+		<img id="dead" src="./images/dead.png" alt="" style="display:none;position: absolute; z-index: 99; bottom: 60px;left: 50%; margin-left: -225px; max-width: 450px;">
 		<script src="js/THREEx.KeyboardState.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.0/howler.min.js"></script>
 		<script type="module">
 
 			import * as THREE from './js/three.module.js';
@@ -46,6 +55,27 @@
 			var poisonList = [];
             var keyboard = new THREEx.KeyboardState();
 			var api = { state: 'Idle' };
+			var died = false;
+			var itswidePutin = false;
+			var startTime;
+			var testedKeys = false;
+			var testedSpace = false;
+			var testedRun = false;
+			var testedCam = false;
+
+			var wideputin = new Howl({
+            	src: ['audios/widegame.mp3']
+            });
+			var poisonSound = new Howl({
+            	src: ['audios/pop.mp3']
+            });
+			var healthySound = new Howl({
+            	src: ['audios/positive.mp3']
+            });
+			var dieSound = new Howl({
+            	src: ['audios/die.mp3'],
+				volume: 0.3,
+            });
 
 			const cloneGltf = (gltf) => {
 				const clone = {
@@ -122,6 +152,9 @@
 				light.position.set( 0, 20, 10 );
 				scene.add( light );
 
+				// time counter 
+				startTime = new Date();
+				
 				// ground
 
 				var mesh = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
@@ -401,14 +434,16 @@
 						});
 						scene.remove(objetodestino);
 						poisonList.splice(pos, 1);
-						model.scale.x += 0.05
+						model.scale.x += 0.005
+						poisonSound.play();
 					}
 				}
 			}
 
             function createHandlers() {
                 document.addEventListener('keydown', (e) => {
-                    if (e.code === "ShiftRight") {
+					if(died){ return;}
+                    if (e.code === "ShiftRight" && !itswidePutin) {
                         movingAction = 'Run';
                         fadeToAction( 'Run', 0.5 );
                     } else if (e.code === "KeyW") {
@@ -419,10 +454,11 @@
                     }
                 });
                 document.addEventListener('keyup', (e) => {
+					if(died){ return;}
                     if (e.code === "KeyW") {
                         isMoving = false;
                         fadeToAction( 'Idle', 0.5 );
-                    } else if (e.code === "ShiftRight") {
+                    } else if (e.code === "ShiftRight" && !itswidePutin) {
                         movingAction = 'Walk';
                         if(isMoving){
                             fadeToAction( 'Walk', 0.5 );
@@ -434,6 +470,16 @@
                             fadeToAction( 'PickUp', 0.5 );
 							var objetocolisionado = checkCollisions();
 							if (objetocolisionado) {
+								if(!testedSpace){
+									testedSpace = true;
+									testedRun = false;
+									window.setTimeout(function(){
+										document.getElementById('space').style.display = "none";
+									},600);
+									window.setTimeout(function(){
+										document.getElementById('run').style.display = "block";
+									},800);
+								}
 								let pos = foodlist.indexOf(objetocolisionado);
 								console.log(objetocolisionado);
 								window.setTimeout(function(){
@@ -445,7 +491,12 @@
 									scene.remove(objetocolisionado);
 									foodlist.splice(pos, 1);
 									if(model.scale.x != 1){
-										model.scale.x -= 0.05
+										var endTime = new Date();
+										var timeelapsed = endTime - startTime;
+										timeelapsed /= 1000;
+
+										model.scale.x -= 0.05 * (timeelapsed/300)
+										healthySound.play();
 									}
 								}, 650)
 							}
@@ -528,18 +579,67 @@
 			//
 
 			function animate() {
+				var endTime = new Date();
+				var timeelapsed = endTime - startTime;
+				timeelapsed /= 1000;
+
+				// get seconds 
+				var seconds = Math.round(timeelapsed);
+				// make it wide :D
+				if(!died && testedRun){
+					model.scale.x = model.scale.x + 0.05*timeelapsed/600;
+					document.getElementById('segundos').innerHTML = seconds;
+				}
+				if (model.scale.x > 16 && !died) {
+					died = true;
+					document.getElementById('dead').style.display = "block";
+					wideputin.stop();
+					dieSound.play();
+				}
+
+				if (model.scale.x > 4.5 && !itswidePutin) {
+					itswidePutin = true;
+					window.setTimeout(function(){
+						document.getElementById('cam').style.display = "block";
+					},200);
+					window.setTimeout(function(){
+						document.getElementById('cam').style.display = "none";
+					},5000);
+					wideputin.play();
+					fadeToAction( 'Walk', 0.5 );
+				}
 
                 var dt = clock.getDelta();
                 var moveDistance = 3 * dt; // 200 pixels per second
                 if(keyboard.pressed("shift")){
+					if(!testedRun){
+						window.setTimeout(function(){
+							document.getElementById('run').style.display = "none";
+							document.getElementById('fat').style.display = "block";
+						},600);
+						window.setTimeout(function(){
+							document.getElementById('fat').style.display = "none";
+						},5000);
+						testedRun = true;
+						startTime = new Date();
+					}
                     moveDistance = 10 * dt;
                 }
-                // model.scale.x = model.scale.x + 0.05*dt;
                 // move forwards/backwards/left/right
                 var isMoving = keyboard.pressed("W") || keyboard.pressed("S") || keyboard.pressed("A") | keyboard.pressed("D")
-                if(isMoving){
-                    if ( keyboard.pressed("W") )
-                        model.translateZ( moveDistance );
+                if(isMoving && !died){
+                    if ( keyboard.pressed("W") ){
+						model.translateZ( moveDistance );
+						if(!testedKeys){
+							testedKeys = true;
+							window.setTimeout(function(){
+								document.getElementById('move').style.display = "none";
+							},600);
+							window.setTimeout(function(){
+								document.getElementById('space').style.display = "block";
+							},800);
+						}
+					}
                     var rotateAngle = Math.PI / 2 * dt;   // pi/2 radians (90 degrees) per second
                     if ( keyboard.pressed("A") )
                         model.rotateOnAxis( new THREE.Vector3(0,1,0), rotateAngle);
@@ -551,8 +651,11 @@
 				poisonCollitions();
 
 				var camerapos = -10;
-				if ( keyboard.pressed("C") )
-					camerapos = 10;
+				if (itswidePutin )
+					camerapos = -camerapos;
+
+				if ( keyboard.pressed("C"))
+					camerapos = -camerapos;
 
                 var relativeCameraOffset = new THREE.Vector3(0,5,camerapos);
 
