@@ -1,5 +1,6 @@
+![](https://img.youtube.com/vi/J3BL6SMwHIg/maxresdefault.jpg)
 # Unexpected Quarantine Effects - Three.js game
-Un juego desarrolladoen 24 horas para la TODO gamejam
+Un juego desarrollado en 24 horas para la TODO gamejam
 
 [Mirá Video de Youtube](https://www.youtube.com/watch?v=J3BL6SMwHIg)
 
